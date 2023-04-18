@@ -2,7 +2,7 @@ import numpy as np
 from numba import njit
 import matplotlib.pyplot as plt
 from astropy import units, constants
-
+import scipy.special
 import matplotlib as mpl
 
 mpl.use('macosx')
@@ -57,10 +57,12 @@ def get_sersic_density(radius, M_tot=1.0, r_0=1.0, n_sersic=1):
     return density_out
 
 
-def extract_radius_from_sersic(N_pt, M_tot_msun=1.e5, sigma_bound=200, r_0_pc=100.0, n_sersic=1, i_iter_max=100000):
-    AA = get_sersic_density(radius=0.0, M_tot=M_tot_msun, r_0=r_0_pc, n_sersic=n_sersic) / get_gaussian(xx=0.0,
-                                                                                                        sigma_0=sigma_bound,
-                                                                                                        mean=0.0)
+def extract_radius_from_sersic(N_pt, M_tot_msun=1.e5, sigma_bound=200, r_0_pc=100.0, n_sersic=1, i_iter_max=100000,
+                               min_star_radius=10):
+    AA = get_sersic_density(radius=min_star_radius, M_tot=M_tot_msun, r_0=r_0_pc, n_sersic=n_sersic) / get_gaussian(
+        xx=min_star_radius,
+        sigma_0=sigma_bound,
+        mean=0.0)
 
     out = np.zeros(N_pt)
 
@@ -104,10 +106,12 @@ def get_nfw_density(radius, M_tot=1.0, r_0=1.0, concentration=10):
     return density_out
 
 
-def extract_radius_from_nfw(N_pt, M_tot_msun=1.e5, sigma_bound=200, r_0_pc=100.0, i_iter_max=100000, min_radius=1e-10):
-    AA = get_nfw_density(radius=min_radius, M_tot=M_tot_msun, r_0=r_0_pc) / get_gaussian(xx=min_radius,
-                                                                                         sigma_0=sigma_bound,
-                                                                                         mean=0.0)
+def extract_radius_from_nfw(N_pt, M_tot_msun=1.e5, sigma_bound=200, r_0_pc=100.0, i_iter_max=100000, min_radius=1e-10,
+                            concentration=10):
+    AA = get_nfw_density(radius=min_radius, M_tot=M_tot_msun, r_0=r_0_pc, concentration=10) / get_gaussian(
+        xx=min_radius,
+        sigma_0=sigma_bound,
+        mean=0.0)
 
     out = np.zeros(N_pt)
 
@@ -151,15 +155,18 @@ def extract_z_from_gaussian(N_pt, scale_height, sigma_bound=200, i_iter_max=1000
     i_pt = 0
     i_iter = 0
 
-    print("extracting particles with gaussian density with A/R")
+    print("extracting particles with gaussian density")
 
     while i_pt < N_pt:
-
-        assert i_iter < i_iter_max
+        # assert i_iter < i_iter_max
 
         # extraction from the boundary function
-        x_0 = np.random.normal(loc=0.0, scale=sigma_bound)
-        f_of_x_0 = get_gaussian(xx=x_0, sigma_0=sigma_bound, mean=0.0)
+        x_0 = np.random.normal(loc=0.0, scale=scale_height)
+        out[i_pt] = x_0
+        i_pt = i_pt + 1
+
+        """
+        f_of_x_0 = get_gaussian(xx=x_0, sigma_0=scale_height, mean=0.0)
         f_of_x_0 = AA * f_of_x_0
 
         # second extraction
@@ -171,12 +178,87 @@ def extract_z_from_gaussian(N_pt, scale_height, sigma_bound=200, i_iter_max=1000
         if accept:
             out[i_pt] = x_0
             i_pt = i_pt + 1
+        """
 
-        i_iter = i_iter + 1
+        # i_iter = i_iter + 1
 
-    print("  efficiency   ", 100.0 * float(N_pt) / float(i_iter), "%")
+    # print("  efficiency   ", 100.0 * float(N_pt) / float(i_iter), "%")
 
     return out
+
+
+def velocity_sersic(N_pt, radius_array, reff=1, M_tot_msun=1e10, n_sersic=1, ):
+    """
+    :param N_pt: number of particles
+    :param radius_array: array of radius for each particle [pc]
+    :param reff: effective radius of the sersic profile [pc]
+    :param M_tot_msun: total mass of the sersic profile
+    :param n_sersic: sersic index
+    :return: Array of the velocity for each particle due to the sersic in km/s
+    """
+
+    out = np.zeros(N_pt)
+    for ii in range(0, N_pt):
+        # Lima Neto et al 1999
+        p_par = 1 - 0.6097 * (1 / n_sersic) + 0.05563 * (1 / n_sersic) ** 2
+
+        # Prigniel & Simien 1997
+        b_par = 2 * n_sersic - 1 / 3 + 0.009876 / n_sersic
+
+        # Terzic & Graham 2005
+        num = constants.G.value * M_tot_msun * constants.M_sun.value * scipy.special.gammainc(n_sersic * (3 - p_par),
+                                                                                              b_par * (radius_array[
+                                                                                                           ii] / reff) ** (
+                                                                                                      1 / n_sersic)
+                                                                                              ) * scipy.special.gamma(
+            n_sersic * (3 - p_par))
+        den = (radius_array * units.pc).to(units.m).value * scipy.special.gamma(n_sersic * (3 - p_par))
+
+        out = 1.0e-3 * (num / den) ** 0.5
+
+    return out
+
+
+def velocity_nfw(N_pt, radius_array, r_vir=1, M_tot_msun=1e10, concentration=10):
+    """
+    :param N_pt: number of particles
+    :param radius_array: array of radius for each particle [pc]
+    :param r_vir: virial_radius [pc]
+    :param M_tot_msun: virial mass of the dm halo
+    :param concentration: concentration parameter
+    :return: Array of the velocity for each particle due to the dm halo
+    """
+    xx = radius_array / r_vir
+    r_vir_in_meter = (r_vir * units.pc).to(units.m).value
+
+    out = np.zeros(N_pt)
+    for ii in range(0, N_pt):
+        num = constants.G.value * M_tot_msun * constants.M_sun.value * np.log(
+            1 + concentration * xx) - concentration * xx / (1 + concentration * xx)
+        den = r_vir_in_meter * xx * (np.log(1 + concentration) - concentration / (1 + concentration))
+
+        out = 1.0e-3 * (num / den) ** 0.5
+
+    return out
+
+
+def initial_velocity(N_pt, radius_array, r_vir=1, reff=1, M_tot_dm=1e10, M_tot_star=1e10, n_sersic=1, concentration=10,
+                     velocity_dispersion=0):
+    v_star = velocity_sersic(N_pt, radius_array, reff=reff, M_tot_msun=M_tot_star, n_sersic=n_sersic)
+    v_dm = velocity_nfw(N_pt, radius_array, r_vir=r_vir, M_tot_msun=M_tot_dm, concentration=concentration)
+
+    # circular velocity due to the potential
+    print(v_star)
+    print(v_dm)
+    v_circ = np.sqrt(v_star ** 2 + v_dm ** 2)
+
+    # adding a random velocity field
+
+    v_r = np.random.normal(loc=0.0, scale=velocity_dispersion, size=N_pt)
+    v_theta = v_circ + np.random.normal(loc=0.0, scale=velocity_dispersion, size=N_pt)
+    v_phi = np.random.normal(loc=0.0, scale=velocity_dispersion, size=N_pt)
+
+    return v_r, v_theta, v_phi
 
 
 def extract_angles_from_sphere(N_pt):
@@ -238,6 +320,7 @@ if __name__ == "__main__":
     unit_t = (constants.G * unit_m / unit_l ** 3) ** (-0.5)
 
     # system setup
+    min_star_radius = 100  # pc
     M_star_tot_msun = 1e10  # msun
     r_eff_star_pc = 2000.0  # pc
     N_star_pt = int(1e4)
@@ -247,7 +330,8 @@ if __name__ == "__main__":
     M_dm_tot_msun = 1e12  # msun
     r_eff_dm_pc = 200e3  # pc
     N_dm_pt = int(1e4)
-    min_radius_nfw = 10  # pc
+    min_radius_nfw = 100  # pc
+    concentration = 10  # concentration parameter
 
     mass_particle_star = M_star_tot_msun / N_star_pt
     mass_particle_dm = M_dm_tot_msun / N_dm_pt
@@ -260,7 +344,7 @@ if __name__ == "__main__":
 
     # analytical profile
     n_bins = 10000
-    rr_star_pc = np.linspace(0.0, 4.0 * r_eff_star_pc, n_bins)
+    rr_star_pc = np.linspace(min_star_radius, 4.0 * r_eff_star_pc, n_bins)
     density_serisc = get_sersic_density(radius=rr_star_pc, M_tot=M_star_tot_msun, r_0=r_eff_star_pc, n_sersic=n_sersic)
 
     rr_dm_pc = np.linspace(min_radius_nfw, r_eff_dm_pc, n_bins)
@@ -268,8 +352,9 @@ if __name__ == "__main__":
 
     # set bound
     sigma_bound_star = 3000
-    AA = get_sersic_density(radius=0.0, M_tot=M_star_tot_msun, r_0=r_eff_star_pc, n_sersic=n_sersic) / get_gaussian(
-        xx=0.0, sigma_0=sigma_bound_star, mean=0.0)
+    AA = get_sersic_density(radius=min_star_radius, M_tot=M_star_tot_msun, r_0=r_eff_star_pc,
+                            n_sersic=n_sersic) / get_gaussian(
+        xx=min_star_radius, sigma_0=sigma_bound_star, mean=0.0)
     test_bound = AA * get_gaussian(xx=rr_star_pc, sigma_0=sigma_bound_star, mean=0.0)
 
     sigma_bound_dm = 10000
@@ -300,11 +385,12 @@ if __name__ == "__main__":
 
     # extract the disk
     r_extract_star = extract_radius_from_sersic(N_pt=N_star_pt, M_tot_msun=M_star_tot_msun, n_sersic=n_sersic,
-                                                sigma_bound=sigma_bound_star, r_0_pc=r_eff_star_pc, i_iter_max=100000)
+                                                sigma_bound=sigma_bound_star, r_0_pc=r_eff_star_pc, i_iter_max=100000,
+                                                min_star_radius=min_star_radius)
     r_extract_star = np.abs(r_extract_star)
     # extract the angle
     theta_star = extract_angles_from_circle(N_pt=N_star_pt)
-    #extract the z position
+    # extract the z position
     z_extract_star = extract_z_from_gaussian(N_pt=N_star_pt, scale_height=h_scale_star)
     x_extract_star, y_extract_star = covert_polar_to_cartesian(radius=r_extract_star, theta=theta_star)
     density_check_star, bin_edges_star = np.histogram(r_extract_star, bins=100, density=True)
@@ -411,6 +497,39 @@ if __name__ == "__main__":
     print('estimated CPUtime     ', cpu_time_dt * n_time_steps / 3600, 'hr')
 
     # --------------
+    # setting up initial velocity of the stars
+
+    v_r_star, v_theta_star, v_phi_star = initial_velocity(N_star_pt, r_extract_star, r_vir=r_eff_dm_pc,
+                                                          reff=r_eff_star_pc, M_tot_dm=M_dm_tot_msun,
+                                                          M_tot_star=M_star_tot_msun, n_sersic=n_sersic,
+                                                          concentration=concentration,
+                                                          velocity_dispersion=5)
+
+    print("min v")
+    print(np.nanmin(v_theta_star))
+
+    plt.plot(r_extract_star, v_theta_star, ls="", marker="o", color="black", alpha=0.2)
+
+    v_r_dm, v_theta_dm, v_phi_dm = initial_velocity(N_dm_pt, r_extract_dm, r_vir=r_eff_dm_pc, reff=r_eff_star_pc,
+                                                    M_tot_dm=M_dm_tot_msun, M_tot_star=M_star_tot_msun,
+                                                    n_sersic=n_sersic, concentration=concentration,
+                                                    velocity_dispersion=0)
+    plt.plot(r_extract_dm, v_theta_dm, ls="", marker="o", color="red", alpha=0.2)
+
+    # expected velocity field
+    v_star = velocity_sersic(100, rr_dm_pc, reff=r_eff_star_pc, M_tot_msun=M_star_tot_msun, n_sersic=1, )
+    v_dm = velocity_nfw(100, rr_dm_pc, r_vir=r_eff_dm_pc, M_tot_msun=M_dm_tot_msun, concentration=concentration)
+    v_circ = np.sqrt(v_star ** 2 + v_dm ** 2)
+    plt.plot(rr_dm_pc, v_star, ls="--", color="green")
+    plt.plot(rr_dm_pc, v_dm, ls="--", color="blue")
+    plt.plot(rr_dm_pc, v_circ, ls="--", color="magenta")
+    plt.ylim(-1, 600)
+    plt.xlabel("radius [pc]")
+    plt.ylabel("circular velocity [km/s]")
+    plt.title("Circular velocity")
+    plt.show()
+
+    # --------------
     # check density star
     # --------------
 
@@ -434,8 +553,8 @@ if __name__ == "__main__":
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
-    ax.plot(rr_dm_pc,density_nfw,ls='-',color='k',label='NFW')
-    ax.plot(rr_dm_pc,test_bound_1, ls='-',label='bound for A/R sampling')
+    ax.plot(rr_dm_pc, density_nfw, ls='-', color='k', label='NFW')
+    ax.plot(rr_dm_pc, test_bound_1, ls='-', label='bound for A/R sampling')
     ax.plot(0.5 * (bin_edges_dm[0:-1] + bin_edges_dm[1:]), density_check_dm, label='extraction')
     ax.axvline(r_eff_dm_pc, ls='--', color='k')
     ax.legend(frameon=False)
