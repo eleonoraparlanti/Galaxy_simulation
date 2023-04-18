@@ -50,9 +50,18 @@ def extract_radius_from_plummer(N_pt, M_tot_msun=1.e5,sigma_bound = 200, r_0_pc 
 
 
 def get_sersic_density(radius, M_tot=1.0, r_0=1.0, n_sersic=1):
+    """
+    Density from Terzic, Graham 2005
+    :param radius: radius array
+    :param M_tot: total mass of the sersic profile
+    :param r_0: effective radius of the sersic profile
+    :param n_sersic: serisc index
+    :return:
+    """
     norm = 3.0 * M_tot / (4.0 * np.pi * r_0 ** 3)
     b = 2 * n_sersic - 1 / 3 + 0.009876 / n_sersic  # Prugniel & Simien 1997
-    density_out = norm * np.exp(-b * (radius / r_0) ** (1 / n_sersic))
+    p = 1 - 0.6097 * (1 / n_sersic) + 0.05563 * (1 / n_sersic) ** 2
+    density_out = norm * (radius / r_0) ** (-p) * np.exp(-b * (radius / r_0) ** (1 / n_sersic))
 
     return density_out
 
@@ -77,6 +86,7 @@ def extract_radius_from_sersic(N_pt, M_tot_msun=1.e5, sigma_bound=200, r_0_pc=10
 
         # extraction from the boundary function
         x_0 = np.random.normal(loc=0.0, scale=sigma_bound)
+        x_0 = np.abs(x_0)
         f_of_x_0 = get_gaussian(xx=x_0, sigma_0=sigma_bound, mean=0.0)
         f_of_x_0 = AA * f_of_x_0
 
@@ -126,6 +136,8 @@ def extract_radius_from_nfw(N_pt, M_tot_msun=1.e5, sigma_bound=200, r_0_pc=100.0
 
         # extraction from the boundary function
         x_0 = np.random.normal(loc=0.0, scale=sigma_bound)
+        x_0 = np.abs(x_0)
+
         f_of_x_0 = get_gaussian(xx=x_0, sigma_0=sigma_bound, mean=0.0)
         f_of_x_0 = AA * f_of_x_0
 
@@ -394,7 +406,7 @@ if __name__ == "__main__":
     z_extract_star = extract_z_from_gaussian(N_pt=N_star_pt, scale_height=h_scale_star)
     x_extract_star, y_extract_star = covert_polar_to_cartesian(radius=r_extract_star, theta=theta_star)
     density_check_star, bin_edges_star = np.histogram(r_extract_star, bins=100, density=True)
-    BB_star = get_sersic_density(radius=0.0, M_tot=M_star_tot_msun, r_0=r_eff_star_pc, n_sersic=n_sersic) / \
+    BB_star = get_sersic_density(radius=min_star_radius, M_tot=M_star_tot_msun, r_0=r_eff_star_pc, n_sersic=n_sersic) / \
               density_check_star[0]
     density_check_star = density_check_star * BB_star
 
@@ -405,7 +417,7 @@ if __name__ == "__main__":
     phi_dm, theta_dm = extract_angles_from_sphere(N_dm_pt)
     x_extract_dm, y_extract_dm, z_extract_dm = covert_spherical_to_cartesian(radius=r_extract_dm, theta=theta_dm,
                                                                              phi=phi_dm)
-    density_check_dm, bin_edges_dm = np.histogram(r_extract_dm, bins=1000, density=True)
+    density_check_dm, bin_edges_dm = np.histogram(r_extract_dm, bins=100, density=True)
     """
     plt.hist(r_extract_dm, alpha = 0.3)
     plt.hist(x_extract_dm, alpha = 0.3)
