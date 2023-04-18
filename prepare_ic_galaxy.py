@@ -56,7 +56,7 @@ def get_sersic_density(radius, M_tot=1.0, r_0=1.0, n_sersic=1):
     :param M_tot: total mass of the sersic profile
     :param r_0: effective radius of the sersic profile
     :param n_sersic: serisc index
-    :return:
+    :return: density at each radius
     """
     norm = 3.0 * M_tot / (4.0 * np.pi * r_0 ** 3)
     b = 2 * n_sersic - 1 / 3 + 0.009876 / n_sersic  # Prugniel & Simien 1997
@@ -95,7 +95,7 @@ def extract_radius_from_sersic(N_pt, M_tot_msun=1.e5, sigma_bound=200, r_0_pc=10
 
         # compare
         accept = mm <= get_sersic_density(radius=x_0, M_tot=M_tot_msun, r_0=r_0_pc, n_sersic=n_sersic)
-        print(mm, get_sersic_density(radius=x_0, M_tot=M_tot_msun, r_0=r_0_pc, n_sersic=n_sersic), accept)
+        # print(mm, get_sersic_density(radius=x_0, M_tot=M_tot_msun, r_0=r_0_pc, n_sersic=n_sersic), accept)
 
         if accept:
             out[i_pt] = x_0
@@ -146,6 +146,7 @@ def extract_radius_from_nfw(N_pt, M_tot_msun=1.e5, sigma_bound=200, r_0_pc=100.0
 
         # compare
         accept = mm <= get_nfw_density(radius=x_0, M_tot=M_tot_msun, r_0=r_0_pc)
+        print(mm, get_sersic_density(radius=x_0, M_tot=M_tot_msun, r_0=r_0_pc, n_sersic=n_sersic), accept)
 
         if accept:
             out[i_pt] = x_0
@@ -219,8 +220,8 @@ def velocity_sersic(N_pt, radius_array, reff=1, M_tot_msun=1e10, n_sersic=1, ):
 
         # Terzic & Graham 2005
         num = constants.G.value * M_tot_msun * constants.M_sun.value * scipy.special.gammainc(n_sersic * (3 - p_par),
-                                                                                              b_par * (radius_array[
-                                                                                                           ii] / reff) ** (
+                                                                                              b_par * (
+                                                                                                          radius_array / reff) ** (
                                                                                                       1 / n_sersic)
                                                                                               ) * scipy.special.gamma(
             n_sersic * (3 - p_par))
@@ -247,7 +248,7 @@ def velocity_nfw(N_pt, radius_array, r_vir=1, M_tot_msun=1e10, concentration=10)
     for ii in range(0, N_pt):
         num = constants.G.value * M_tot_msun * constants.M_sun.value * np.log(
             1 + concentration * xx) - concentration * xx / (1 + concentration * xx)
-        den = r_vir_in_meter * xx * (np.log(1 + concentration) - concentration / (1 + concentration))
+        den = r_vir_in_meter * (np.log(1 + concentration) - concentration / (1 + concentration))
 
         out = 1.0e-3 * (num / den) ** 0.5
 
