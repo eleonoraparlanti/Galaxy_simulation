@@ -575,7 +575,23 @@ if __name__ == "__main__":
     ax.set_xlabel(r'$r \, \rm pc$')
     plt.tight_layout()
     plt.show()
-
+    
+    # ---------------------------------------
+	# Checking 3D distribution with HDF5
+	# ---------------------------------------
+		
+    box_left_edge   = np.min(pos_normed_star)/8 
+    box_right_edge  = np.max(pos_normed_star)/8
+    N_grid  = 128
+    
+    print("Projection using cloud in cell")
+    projected_field = projection(box_left_edge=box_left_edge,box_right_edge=box_right_edge,N_grid=N_grid,pos_array=pos_normed_star,field_array=mass_norm_star,normalization=1.0)
+    print("Projection completed! snapshot saved!")
+    print("min projected density = ",np.min(projected_field),"max projected_field = ",np.max(projected_field))
+    
+    h = h5py.File('star_density.h5', 'w')
+    dset = h.create_dataset('density', data=projected_field)
+    
     # --------------
     # check 3D distribution
     # --------------
