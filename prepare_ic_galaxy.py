@@ -4,10 +4,14 @@ import matplotlib.pyplot as plt
 from astropy import units, constants
 import scipy.special
 import matplotlib as mpl
-
-mpl.use('macosx')
+import h5py
+from projection import projection
+from evolve_system import evolve_dt_galaxy
+from mpl_toolkits.mplot3d import Axes3D
+#mpl.use('macosx')
 
 from time import time
+from evolve_system import evolve_dt_galaxy, evolve_to_t_end_galaxy
 
 """
 def extract_radius_from_plummer(N_pt, M_tot_msun=1.e5,sigma_bound = 200, r_0_pc = 100.0,i_iter_max=100000):
@@ -288,7 +292,7 @@ def extract_angles_from_circle(N_pt):
     return theta
 
 
-def covert_spherical_to_cartesian(radius, phi, theta):
+def convert_spherical_to_cartesian(radius, phi, theta):
     xx = radius * np.cos(phi) * np.sin(theta)
     yy = radius * np.sin(phi) * np.sin(theta)
     zz = radius * np.cos(theta)
@@ -296,7 +300,7 @@ def covert_spherical_to_cartesian(radius, phi, theta):
     return xx, yy, zz
 
 
-def covert_polar_to_cartesian(radius, theta):
+def convert_polar_to_cartesian(radius, theta):
     xx = radius * np.cos(theta)
     yy = radius * np.sin(theta)
 
@@ -323,7 +327,7 @@ def get_plummer_density(radius, M_tot=1.0, r_0=1.0):
 """
 if __name__ == "__main__":
     # check IC
-    from gravity_tree import tree, build_tree_from_particles, compute_mass_on_tree, compute_potential_tree
+    from gravity_tree import tree, build_tree_from_particles, compute_mass_on_tree, compute_potential_tree, compute_acceleration_tree
     from tree_module.part_2_tree import get_level_per_particle
     from gravity_bruteforce import compute_potential
 
@@ -336,13 +340,13 @@ if __name__ == "__main__":
     min_star_radius = 100  # pc
     M_star_tot_msun = 1e10  # msun
     r_eff_star_pc = 2000.0  # pc
-    N_star_pt = int(1e4)
+    N_star_pt = int(1e2)
     n_sersic = 1
     h_scale_star = 40  # pc
 
     M_dm_tot_msun = 1e12  # msun
     r_eff_dm_pc = 200e3  # pc
-    N_dm_pt = int(1e4)
+    N_dm_pt = int(1e2)
     min_radius_nfw = 100  # pc
     concentration = 10  # concentration parameter
 
@@ -398,14 +402,14 @@ if __name__ == "__main__":
 
     # extract the disk
     r_extract_star = extract_radius_from_sersic(N_pt=N_star_pt, M_tot_msun=M_star_tot_msun, n_sersic=n_sersic,
-                                                sigma_bound=sigma_bound_star, r_0_pc=r_eff_star_pc, i_iter_max=100000,
+                                                sigma_bound=sigma_bound_star, r_0_pc=r_eff_star_pc, i_iter_max=200000,
                                                 min_star_radius=min_star_radius)
     r_extract_star = np.abs(r_extract_star)
     # extract the angle
     theta_star = extract_angles_from_circle(N_pt=N_star_pt)
     # extract the z position
     z_extract_star = extract_z_from_gaussian(N_pt=N_star_pt, scale_height=h_scale_star)
-    x_extract_star, y_extract_star = covert_polar_to_cartesian(radius=r_extract_star, theta=theta_star)
+    x_extract_star, y_extract_star = convert_polar_to_cartesian(radius=r_extract_star, theta=theta_star)
     density_check_star, bin_edges_star = np.histogram(r_extract_star, bins=100, density=True)
     BB_star = get_sersic_density(radius=min_star_radius, M_tot=M_star_tot_msun, r_0=r_eff_star_pc, n_sersic=n_sersic) / \
               density_check_star[0]
@@ -413,10 +417,10 @@ if __name__ == "__main__":
 
     # extract the dm halo
     r_extract_dm = extract_radius_from_nfw(N_pt=N_dm_pt, M_tot_msun=M_dm_tot_msun, sigma_bound=sigma_bound_dm,
-                                           r_0_pc=r_eff_dm_pc, i_iter_max=100000, min_radius=min_radius_nfw)
+                                           r_0_pc=r_eff_dm_pc, i_iter_max=200000, min_radius=min_radius_nfw)
     r_extract_dm = np.abs(r_extract_dm)
     phi_dm, theta_dm = extract_angles_from_sphere(N_dm_pt)
-    x_extract_dm, y_extract_dm, z_extract_dm = covert_spherical_to_cartesian(radius=r_extract_dm, theta=theta_dm,
+    x_extract_dm, y_extract_dm, z_extract_dm = convert_spherical_to_cartesian(radius=r_extract_dm, theta=theta_dm,
                                                                              phi=phi_dm)
     density_check_dm, bin_edges_dm = np.histogram(r_extract_dm, bins=100, density=True)
     """
@@ -508,25 +512,49 @@ if __name__ == "__main__":
     cpu_time_dt = t_end - t_start
     print('assuming N^2 potential computation for dt cost')
     print('estimated CPUtime     ', cpu_time_dt * n_time_steps / 3600, 'hr')
-
-    # --------------
+	
+    t_start = time()
+    acceleration = compute_acceleration_tree(tree_in=comp_tree,critical_angle=0.1, G_gravity= 1.0, n_iter_max=10000, verbose= False)
+    t_end = time()
+    cpu_time_dt = t_end - t_start
+    print('assuming tree potential computation for dt cost')
+    print('estimated CPUtime     ', cpu_time_dt * n_time_steps / 3600, 'hr')
+	
+    # ----------------------------------------
     # setting up initial velocity of the stars
-
+    # ----------------------------------------
+    
     v_r_star, v_theta_star, v_phi_star = initial_velocity(N_star_pt, r_extract_star, r_vir=r_eff_dm_pc,
                                                           reff=r_eff_star_pc, M_tot_dm=M_dm_tot_msun,
                                                           M_tot_star=M_star_tot_msun, n_sersic=n_sersic,
                                                           concentration=concentration,
                                                           velocity_dispersion=5)
-
+    vx_star, vy_star, vz_star = convert_spherical_to_cartesian(radius=v_r_star,phi=v_phi_star,theta=v_theta_star)
+	
+    v_tot_star = np.zeros((3, N_pt_cut_star))
+    v_tot_star[0, :] = vx_star[mask_star]
+    v_tot_star[1, :] = vy_star[mask_star]
+    v_tot_star[2, :] = vz_star[mask_star]
+    
     print("min v")
     print(np.nanmin(v_theta_star))
 
     plt.plot(r_extract_star, v_theta_star, ls="", marker="o", color="black", alpha=0.2)
 
+    # ----------------------------------------
+    # setting up initial velocity of DM
+    # ----------------------------------------
+
     v_r_dm, v_theta_dm, v_phi_dm = initial_velocity(N_dm_pt, r_extract_dm, r_vir=r_eff_dm_pc, reff=r_eff_star_pc,
                                                     M_tot_dm=M_dm_tot_msun, M_tot_star=M_star_tot_msun,
                                                     n_sersic=n_sersic, concentration=concentration,
                                                     velocity_dispersion=0)
+    vx_dm, vy_dm, vz_dm = convert_spherical_to_cartesian(radius=v_r_dm,phi=v_phi_dm,theta=v_theta_dm)
+    v_tot_dm = np.zeros((3, N_pt_cut_dm))
+    v_tot_dm[0, :] = vx_dm[mask_dm]
+    v_tot_dm[1, :] = vy_dm[mask_dm]
+    v_tot_dm[2, :] = vz_dm[mask_dm]
+    
     plt.plot(r_extract_dm, v_theta_dm, ls="", marker="o", color="red", alpha=0.2)
 
     # expected velocity field
@@ -585,12 +613,12 @@ if __name__ == "__main__":
     N_grid  = 128
     
     print("Projection using cloud in cell")
-    projected_field = projection(box_left_edge=box_left_edge,box_right_edge=box_right_edge,N_grid=N_grid,pos_array=pos_normed_star,field_array=mass_norm_star,normalization=1.0)
+    projected_field = projection(box_left_edge=box_left_edge,box_right_edge=box_right_edge,N_grid=N_grid,pos_array=pos_normed_star,field_array=v_theta_star,normalization=1.0)
     print("Projection completed! snapshot saved!")
     print("min projected density = ",np.min(projected_field),"max projected_field = ",np.max(projected_field))
     
-    h = h5py.File('star_density.h5', 'w')
-    dset = h.create_dataset('density', data=projected_field)
+    #h = h5py.File('star_velocity_theta.h5', 'w')
+    #dset = h.create_dataset('velocity', data=projected_field)
     
     # --------------
     # check 3D distribution
@@ -619,3 +647,37 @@ if __name__ == "__main__":
     plt.tight_layout()
 
     plt.show()
+    
+    # ------------------------------------
+    # Evolving for the first few time step
+    # ------------------------------------
+    
+    print("Evolution started!!")
+    
+    dt_myr     = 1
+    t_end_myr  = 2.0 
+    f_snap_myr = 1.0 
+    
+    # get particle level using a tree
+    comp_tree = tree(n_dim=n_dim, n_grid=n_grid, n_part_per_cell=n_part_per_cell, mass_pt=mass_norm_star, pos_pt=pos_normed_star)
+    
+    comp_tree = build_tree_from_particles(tree_in=comp_tree, i_iter_max=10000)
+    acceleration_stars = compute_acceleration_tree(tree_in=comp_tree,critical_angle=0.1, G_gravity= 1.0, n_iter_max=10000, verbose= False)
+    t_now, i_iter, pt_mass, pt_pos, pt_vel, pt_acc, pos_snap, vel_snap, e_snap , t_snap = evolve_to_t_end_galaxy(t_end=t_end_myr, pt_mass=mass_norm_star, pt_pos=pos_normed_star, pt_vel=v_tot_star, pt_acc=acceleration_stars, comp_tree=comp_tree, G_gravity=1.0, max_iterations=1000, n_snap=1000, f_snap=f_snap_myr, eta_time=dt_myr)
+    
+    # --------------
+    # check 3D distribution
+    # --------------
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+
+    ax.plot(x_extract_star, y_extract_star, z_extract_star, marker='x', ls='', alpha=0.1, color="k")
+
+    ax.plot(x_extract_dm, y_extract_dm, z_extract_dm, marker='x', ls='', alpha=0.1, color="r")
+
+    plt.tight_layout()
+
+    plt.show()
+
+    

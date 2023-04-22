@@ -325,6 +325,126 @@ def compute_potential_tree(tree_in,critical_angle=0.0, G_gravity= 1.0, n_iter_ma
 
   return out
 
+@njit
+def compute_acceleration_tree(tree_in,critical_angle=0.0, G_gravity= 1.0, n_iter_max=5000, verbose= False):
+
+  out            = np.zeros((tree_in.n_dim,tree_in.n_pt))
+
+  # temporary n_dim arrays
+  center_of_mass = np.zeros(tree_in.n_dim)
+  pos_i_part     = np.zeros(tree_in.n_dim)
+  pos_j_part     = np.zeros(tree_in.n_dim)
+  pos_ij_part    = np.zeros(tree_in.n_dim)
+  pos_cmi_part   = np.zeros(tree_in.n_dim)   ##cm = center of mass
+  acc_j          = np.zeros(tree_in.n_dim)
+  
+  # lists
+  id_cells_to_check     = np.zeros(tree_in.n_max,dtype=NP_INT)
+  id_cells_to_check_new = np.zeros(tree_in.n_max,dtype=NP_INT)
+  n_cells_to_check      = 0
+  n_cells_to_check_new  = 0
+
+  # counters
+  n_iter_tot        = 0.0
+  n_exact_tot       = 0.0
+  n_approx_tot      = 0.0
+
+  if verbose:
+    print("calling compute_force_tree()")
+    print("  particle number            ",tree_in.n_pt)
+    print("  number of dimensions       ",tree_in.n_dim)
+    print("  number of cells            ",tree_in.n_now)
+    print("  max level                  ",np.max(tree_in.levels))
+    print("  opening angle              ",critical_angle)
+
+  # loop on the particle
+  for i_part in range(tree_in.n_pt):
+
+    # pick a particle
+    pos_i_part[:]        = tree_in.pos_pt[:,i_part]
+
+    # init the pointers for the cells
+    n_cells_to_check_new = 0
+    n_cells_to_check     = 1
+    id_cells_to_check[0] = 0
+
+    # counters to check the efficiency
+    i_exact              = 0 
+    i_iter               = 0
+    i_approx             = 0
+
+    # while there are cells that can be opened/pruned
+    while(n_cells_to_check > 0):
+    
+      assert i_iter< n_iter_max
+    
+      # loop on the current cells
+      for ii in range(n_cells_to_check):
+
+        i_iter           = i_iter + 1 
+      
+        # pick a cell
+        i_current        = id_cells_to_check[ii]
+
+        # check if we need to open the cell
+        if node_need_to_be_opened(i_cell=i_current, pos_in= pos_i_part,tree_in=tree_in,critical_angle=critical_angle):
+        
+          # if it is a leaf, do a bruteforce computation
+          if is_leaf(i_current,tree_in):
+            # do a N^2 sum within the cell
+            for jj in range(tree_in.n_parts[i_current]):
+              j_part = tree_in.id_parts[jj,i_current]
+              # avoid self force
+              if j_part != i_part:
+                pos_j_part[:] = tree_in.pos_pt[:,j_part]
+                pos_ij_part[:]= pos_j_part[:] - pos_i_part[:]
+                dist          = np.sqrt(np.sum((pos_j_part[:]- pos_i_part[:])**2))
+                acc_j[:]      = tree_in.mass_pt[j_part] * pos_ij_part[:]/ dist**(3.0)
+
+                out[:,i_part] = out[:,i_part] + acc_j[:]
+                
+                # update counter for exact computation
+                i_exact       = i_exact + 1
+          # if it is not a leaf, add all the childrens
+          else:
+            for i_child in range(tree_in.n_children):
+              id_cells_to_check_new[n_cells_to_check_new + i_child] = tree_in.childrens[i_child,i_current]
+            # update the new sets of pointers
+            n_cells_to_check_new = n_cells_to_check_new + tree_in.n_children
+        else:
+          # prune out the branch (higher levels of the current cell)
+          if(tree_in.mass_moment_0[i_current]>0):
+            # compute center of mass and distance
+            center_of_mass[:] = tree_in.mass_moment_1[:,i_current]/tree_in.mass_moment_0[i_current]
+            pos_cmi_part[:]   = center_of_mass[:] - pos_i_part[:]
+            dist              = np.sqrt(np.sum((center_of_mass[:] - pos_i_part[:])**2))
+            # compute the potential with monopole approximation
+            acc_j[:]          = tree_in.mass_moment_0[i_current] * pos_cmi_part[:]/dist**(3.0)
+            out[:,i_part]     = out[:,i_part] + acc_j[:]
+            i_approx          = i_approx + 1
+            
+      # loop on current cells is done
+      # update the cell id list for next iteration
+      id_cells_to_check[0:n_cells_to_check_new] = id_cells_to_check_new[0:n_cells_to_check_new]
+      n_cells_to_check                          = n_cells_to_check_new
+      # reset list for next cells
+      n_cells_to_check_new                      = 0
+
+    if verbose:
+      n_iter_tot  = n_iter_tot   + float(i_iter)
+      n_exact_tot = n_exact_tot  + float(i_exact)
+      n_approx_tot= n_approx_tot + float(i_approx)
+  
+  if verbose:
+    print("  average iterations         ",n_iter_tot/tree_in.n_pt)
+    print("  average exact  calculations",n_exact_tot/tree_in.n_pt)
+    print("  average approx calculations",n_approx_tot/tree_in.n_pt)
+    print("  theoretical speedup        ",tree_in.n_pt**2/n_iter_tot)
+
+  out[:] = out[:] * G_gravity
+
+  return out
+
 if __name__ == "__main__":
 
   """
