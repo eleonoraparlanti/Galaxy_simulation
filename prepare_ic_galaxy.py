@@ -648,22 +648,58 @@ if __name__ == "__main__":
 
     plt.show()
     
+    print("Extract x pos = ",np.shape(x_extract_star))
+    print("Extract x vel = ",np.shape(vx_star))
+    
+    # ------------------------------------
+    # Saving the Initial Condition files 
+    # ------------------------------------
+    
+    with open("ic_star_N"+str(N_pt_cut_star)+".txt",'w') as f:
+        
+        y = '# 1) Mass'+'\t'+'2) x (kpc/h)'+'\t'+'3) y (kpc/h)'+'\t'+'4) z (kpc/h)'+'\t'+'5) Vx (km/s)'+'\t'+'6) Vy (km/s)'+'\t'+'7) Vz (km/s)'+'\t'
+        f.write(y)
+        f.write('\n')
+    	
+        print("len = ",len(x_extract_star))
+        print("dim = ",len(pos_normed_star),len(v_tot_star))
+    	
+        for i in range(len(x_extract_star)):
+            
+            line = str(mass_norm_star[i])+'\t'+str(pos_normed_star[0,i])+'\t'+str(pos_normed_star[1,i])+'\t'+str(pos_normed_star[2,i])+'\t'+str(v_tot_star[0,i])+'\t'+str(v_tot_star[1,i])+'\t'+str(v_tot_star[2,i]) 
+#             print(line)
+            f.write(line)
+            f.write('\n')
+            
+    with open("ic_dm_N"+str(N_pt_cut_dm)+".txt",'w') as f:
+        
+        y = '# 1) Mass'+'\t'+'2) x (kpc/h)'+'\t'+'3) y (kpc/h)'+'\t'+'4) z (kpc/h)'+'\t'+'5) Vx (km/s)'+'\t'+'6) Vy (km/s)'+'\t'+'7) Vz (km/s)'+'\t'
+        f.write(y)
+        f.write('\n')
+    
+        for i in range(len(x_extract_star)):
+            
+            line = str(mass_norm_dm[i])+'\t'+str(pos_normed_dm[0,i])+'\t'+str(pos_normed_dm[1,i])+'\t'+str(pos_normed_dm[2,i])+'\t'+str(v_tot_dm[0,i])+'\t'+str(v_tot_dm[1,i])+'\t'+str(v_tot_dm[2,i]) 
+#             print(line)
+            f.write(line)
+            f.write('\n')
+            
     # ------------------------------------
     # Evolving for the first few time step
     # ------------------------------------
     
-    print("Evolution started!!")
+    #print("Evolution started!!")
     
-    dt_myr     = 1
-    t_end_myr  = 2.0 
-    f_snap_myr = 1.0 
+    #dt_myr     = 1
+    #t_end_myr  = 2.0 
+    #f_snap_myr = 1.0 
     
     # get particle level using a tree
-    comp_tree = tree(n_dim=n_dim, n_grid=n_grid, n_part_per_cell=n_part_per_cell, mass_pt=mass_norm_star, pos_pt=pos_normed_star)
+    #comp_tree = tree(n_dim=n_dim, n_grid=n_grid, n_part_per_cell=n_part_per_cell, mass_pt=mass_norm_star, pos_pt=pos_normed_star)
     
-    comp_tree = build_tree_from_particles(tree_in=comp_tree, i_iter_max=10000)
-    acceleration_stars = compute_acceleration_tree(tree_in=comp_tree,critical_angle=0.1, G_gravity= 1.0, n_iter_max=10000, verbose= False)
-    t_now, i_iter, pt_mass, pt_pos, pt_vel, pt_acc, pos_snap, vel_snap, e_snap , t_snap = evolve_to_t_end_galaxy(t_end=t_end_myr, pt_mass=mass_norm_star, pt_pos=pos_normed_star, pt_vel=v_tot_star, pt_acc=acceleration_stars, comp_tree=comp_tree, G_gravity=1.0, max_iterations=1000, n_snap=1000, f_snap=f_snap_myr, eta_time=dt_myr)
+    #comp_tree = build_tree_from_particles(tree_in=comp_tree, i_iter_max=10000)
+    #acceleration_stars = compute_acceleration_tree(tree_in=comp_tree,critical_angle=0.1, G_gravity= 1.0, n_iter_max=10000, verbose= False)
+    #t_now, i_iter, pt_mass, pt_pos, pt_vel, pt_acc, pos_snap, vel_snap, e_snap , t_snap = evolve_to_t_end_galaxy(t_end=t_end_myr, pt_mass=mass_norm_star, pt_pos=pos_normed_star, pt_vel=v_tot_star, pt_acc=acceleration_stars, comp_tree=comp_tree, G_gravity=1.0, max_iterations=1000, n_snap=1000, f_snap=f_snap_myr, eta_time=dt_myr)
     
     # --------------
     # check 3D distribution

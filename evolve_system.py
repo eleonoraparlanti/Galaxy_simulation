@@ -3,6 +3,7 @@ import numpy as np
 from gravity_bruteforce import compute_acceleration,compute_jerk,compute_kinetic_energy, compute_potential
 from gravity_tree import tree, build_tree_from_particles, compute_mass_on_tree, compute_potential_tree, compute_acceleration_tree
 import matplotlib.pyplot as plt
+import h5py
 
 def drift(dt, pos_in, vel_in):
 
@@ -122,7 +123,7 @@ def evolve_to_t_end_galaxy(t_end, pt_mass, pt_pos, pt_vel, pt_acc, comp_tree, G_
     #dt = compute_time_step(pt_mass, pt_pos, pt_vel, pt_acc,pt_jerk , eta_time = eta_time)
     dt = eta_time
     
-    print("\nTime now = ",t_now)
+    print("\nTime now = ",t_now, " Myr")
     dt, pt_mass, pt_pos, pt_vel, pt_acc, comp_tree = evolve_dt_galaxy(dt=dt, pt_mass=pt_mass, pt_pos=pt_pos, pt_vel=pt_vel, pt_acc=pt_acc, comp_tree=comp_tree, G_gravity=G_gravity)
     print("evolution for this step done!")
     
@@ -131,7 +132,11 @@ def evolve_to_t_end_galaxy(t_end, pt_mass, pt_pos, pt_vel, pt_acc, comp_tree, G_
 
     if (i_iter % f_snap == 0) and (i_snap < n_snap):
       # produce some snapshot
-      print("Snapshot saved!")
+      print("Snapshot produced but not saved!")
+      
+      #h = h5py.File('star_distribution.h5', 'w')
+      #dset = h.create_dataset('pos', data=projected_field)
+      
       e_k                   = np.sum(compute_kinetic_energy(masses=pt_mass,velocities=pt_vel))
       e_p                   = np.sum(compute_potential(masses=pt_mass,positions=pt_pos, G_gravity= G_gravity))
 
