@@ -150,7 +150,7 @@ def extract_radius_from_nfw(N_pt, M_tot_msun=1.e5, sigma_bound=200, r_0_pc=100.0
 
         # compare
         accept = mm <= get_nfw_density(radius=x_0, M_tot=M_tot_msun, r_0=r_0_pc)
-        print(mm, get_sersic_density(radius=x_0, M_tot=M_tot_msun, r_0=r_0_pc, n_sersic=n_sersic), accept)
+        #print(mm, get_sersic_density(radius=x_0, M_tot=M_tot_msun, r_0=r_0_pc, n_sersic=n_sersic), accept)
 
         if accept:
             out[i_pt] = x_0
@@ -648,9 +648,6 @@ if __name__ == "__main__":
 
     plt.show()
     
-    print("Extract x pos = ",np.shape(x_extract_star))
-    print("Extract x vel = ",np.shape(vx_star))
-    
     # ------------------------------------
     # Saving the Initial Condition files 
     # ------------------------------------
@@ -661,10 +658,7 @@ if __name__ == "__main__":
         f.write(y)
         f.write('\n')
     	
-        print("len = ",len(x_extract_star))
-        print("dim = ",len(pos_normed_star),len(v_tot_star))
-    	
-        for i in range(len(x_extract_star)):
+        for i in range(N_pt_cut_star):
             
             line = str(mass_norm_star[i])+'\t'+str(pos_normed_star[0,i])+'\t'+str(pos_normed_star[1,i])+'\t'+str(pos_normed_star[2,i])+'\t'+str(v_tot_star[0,i])+'\t'+str(v_tot_star[1,i])+'\t'+str(v_tot_star[2,i]) 
 #             print(line)
@@ -677,13 +671,17 @@ if __name__ == "__main__":
         f.write(y)
         f.write('\n')
     
-        for i in range(len(x_extract_star)):
+        for i in range(N_pt_cut_dm):
             
             line = str(mass_norm_dm[i])+'\t'+str(pos_normed_dm[0,i])+'\t'+str(pos_normed_dm[1,i])+'\t'+str(pos_normed_dm[2,i])+'\t'+str(v_tot_dm[0,i])+'\t'+str(v_tot_dm[1,i])+'\t'+str(v_tot_dm[2,i]) 
 #             print(line)
             f.write(line)
             f.write('\n')
-            
+       
+    print("-----------------------------------------")
+    print("Initial condition file saved succesfully!")
+    print("-----------------------------------------")
+         
     # ------------------------------------
     # Evolving for the first few time step
     # ------------------------------------
