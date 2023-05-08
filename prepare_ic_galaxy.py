@@ -340,13 +340,13 @@ if __name__ == "__main__":
     min_star_radius = 100  # pc
     M_star_tot_msun = 1e10  # msun
     r_eff_star_pc = 2000.0  # pc
-    N_star_pt = int(1e2)
+    N_star_pt = int(1e4)
     n_sersic = 1
     h_scale_star = 40  # pc
 
     M_dm_tot_msun = 1e12  # msun
     r_eff_dm_pc = 200e3  # pc
-    N_dm_pt = int(1e2)
+    N_dm_pt = int(1e4)
     min_radius_nfw = 100  # pc
     concentration = 10  # concentration parameter
 
@@ -438,7 +438,7 @@ if __name__ == "__main__":
     # check IC for stars
     # ----------
 
-    r_cut_star = 4.0 * r_eff_star_pc
+    r_cut_star = 10.0 * r_eff_star_pc
     mask_star = r_extract_star < r_cut_star
     N_pt_cut_star = len(r_extract_star[mask_star])
 
@@ -519,23 +519,28 @@ if __name__ == "__main__":
     cpu_time_dt = t_end - t_start
     print('assuming tree potential computation for dt cost')
     print('estimated CPUtime     ', cpu_time_dt * n_time_steps / 3600, 'hr')
-	
+
     # ----------------------------------------
     # setting up initial velocity of the stars
     # ----------------------------------------
-    
+
     v_r_star, v_theta_star, v_phi_star = initial_velocity(N_star_pt, r_extract_star, r_vir=r_eff_dm_pc,
                                                           reff=r_eff_star_pc, M_tot_dm=M_dm_tot_msun,
                                                           M_tot_star=M_star_tot_msun, n_sersic=n_sersic,
                                                           concentration=concentration,
                                                           velocity_dispersion=5)
-    vx_star, vy_star, vz_star = convert_spherical_to_cartesian(radius=v_r_star,phi=v_phi_star,theta=v_theta_star)
-	
+
+    v_modulus = np.sqrt(v_r_star ** 2 + v_theta_star ** 2 + v_phi_star ** 2)
+    phi_star_particles = np.arccos(z_extract_star / np.sqrt(r_extract_star ** 2 + z_extract_star ** 2))
+
+    vx_star, vy_star, vz_star = convert_spherical_to_cartesian(radius=v_modulus, phi=theta_star,
+                                                               theta=phi_star_particles)
+
     v_tot_star = np.zeros((3, N_pt_cut_star))
     v_tot_star[0, :] = vx_star[mask_star]
     v_tot_star[1, :] = vy_star[mask_star]
     v_tot_star[2, :] = vz_star[mask_star]
-    
+
     print("min v")
     print(np.nanmin(v_theta_star))
 
