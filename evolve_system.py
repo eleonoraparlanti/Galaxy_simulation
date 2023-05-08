@@ -105,7 +105,7 @@ def evolve_dt(dt, pt_mass, pt_pos, pt_vel, pt_acc,pt_jerk, G_gravity=1.0):
 
   return dt, pt_mass, new_pt_pos, new_pt_vel, new_pt_acc, new_pt_jerk
 
-def evolve_to_t_end_galaxy(t_end, pt_mass, pt_pos, pt_vel, pt_acc, comp_tree, G_gravity=1.0, max_iterations=1000, n_snap=1000, f_snap=1, eta_time=1.e-3):
+def evolve_to_t_end_galaxy(t_end, pt_mass, pt_pos, pt_vel, pt_acc, comp_tree, G_gravity=1.0, max_iterations=1e6, n_snap=1000, f_snap=1, eta_time=1.e-3):
 
   t_now  = 0.0
   i_iter = 0
@@ -145,14 +145,29 @@ def evolve_to_t_end_galaxy(t_end, pt_mass, pt_pos, pt_vel, pt_acc, comp_tree, G_
       pos_snap[:,:,i_snap]  = pt_pos[:,:]
       vel_snap [:,:,i_snap] = pt_vel[:,:]
       
+      #fig = plt.figure()
+      #ax = fig.add_subplot(projection='3d')
+
+      #ax.plot(pt_pos[0,:], pt_pos[1,:], pt_pos[2,:], marker='x', ls='', alpha=0.1, color="k")
+      #ax.set_title("Snaphot afer "+str(t_now)+" Myr of evolution!")      
+      #plt.tight_layout()
+
+      #plt.show()
+      
       fig = plt.figure()
-      ax = fig.add_subplot(projection='3d')
-
-      ax.plot(pt_pos[0,:], pt_pos[1,:], pt_pos[2,:], marker='x', ls='', alpha=0.1, color="k")
-      ax.set_title("Snaphot afer "+str(t_now)+" Myr of evolution!")      
+      ax = fig.add_subplot(111)
+      ax.scatter(pt_pos[0,0]*20,pt_pos[1,0]*20,c='red',label="center : "+str("{:.2E}".format(pt_mass[0]))+"Msun")
+      for i in range(1,len(pt_mass)):
+	      ax.scatter(pt_pos[0,i]*20,pt_pos[1,i]*20,c='blue')
+      ax.set_xlim(-0.5*20,0.5*20)
+      ax.set_ylim(-0.5*20,0.5*20)
+      ax.set_xlabel("kpc")
+      ax.set_ylabel("kpc")
+      ax.legend()
+      ax.set_title("Snaphot afer "+str(np.round(t_now,2))+" Myr of evolution!")      
       plt.tight_layout()
-
-      plt.show()
+      plt.savefig("orbit_"+str(np.round(t_now,2))+".png")
+      #plt.show()
       
       t_snap[i_snap]        = t_now
       
@@ -181,11 +196,18 @@ def evolve_dt_galaxy(dt, pt_mass, pt_pos, pt_vel, pt_acc, comp_tree, G_gravity=1
   #
   new_pt_acc   = np.zeros((n_dim,n_pt))
   
+  print("pt vel 0 = ",pt_vel)
+  print("pt acc   = ",pt_acc)
   new_pt_vel[:,:] = kick(dt=dt/2.0, vel_in = pt_vel[:,:], acc_in = pt_acc[:,:])
+  print("pt vel 1 = ",new_pt_vel)
   new_pt_pos[:,:] = drift(dt=dt   , pos_in = pt_pos[:,:], vel_in = new_pt_vel[:,:])
+  print("pt pos   = ",new_pt_pos)
+  comp_tree       = tree(n_dim=3, n_grid=10000, n_part_per_cell=1, mass_pt=pt_mass, pos_pt=new_pt_pos)
   comp_tree       = build_tree_from_particles(tree_in=comp_tree, i_iter_max=10000)
-  new_pt_acc[:,:] = compute_acceleration_tree(tree_in=comp_tree,critical_angle=0.1, G_gravity= 1.0, n_iter_max=50000, verbose= False)
+  new_pt_acc[:,:] = compute_acceleration_tree(tree_in=comp_tree,critical_angle=0.1, G_gravity= G_gravity, n_iter_max=50000, verbose= False)
+  print("New acc  = ",new_pt_acc)
   new_pt_vel[:,:] = kick(dt=dt/2.0, vel_in = new_pt_vel[:,:], acc_in = new_pt_acc[:,:])
+  print("pt vel 2 = ",new_pt_vel)
 
   return dt, pt_mass, new_pt_pos, new_pt_vel, new_pt_acc, comp_tree
 
