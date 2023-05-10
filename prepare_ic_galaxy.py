@@ -315,6 +315,12 @@ def get_gaussian(xx, sigma_0=1.0, mean=0.0):
 
     return out
 
+def convert_velocity_spherical_to_cartesian(v_r, theta_v, phi_v, theta_loc):
+    vx_star = -1* theta_v*np.sin(theta_loc) + v_r*np.cos(theta_loc)
+    vy_star = theta_v*np.cos(theta_loc) + v_r*np.sin(theta_loc)
+    vz_star = phi_v
+    return vx_star, vy_star, vz_star
+
 
 """
 def get_plummer_density(radius, M_tot=1.0, r_0=1.0):
@@ -330,6 +336,30 @@ if __name__ == "__main__":
     from gravity_tree import tree, build_tree_from_particles, compute_mass_on_tree, compute_potential_tree, compute_acceleration_tree
     from tree_module.part_2_tree import get_level_per_particle
     from gravity_bruteforce import compute_potential
+
+    # spiral quantites
+    SPIRAL_LOC = True
+    SPIRAL_VEL = True
+    if SPIRAL_LOC:
+        from spiral import *
+        # init galaxy parameters
+        # make sure these are consistent with sersic profile
+        CORE_RAD     = 100      # radius of core
+        GAL_RAD      = 5000     # radius of visible spiral arms
+        DIST_RAD     = 20000     # end radius of galaxy
+        INNER_E      = 0.4    # inner eccentricity
+        OUTER_E      = 0.9    # outer eccentricity
+        ANG_OFF      = 4      # 'coiledness' of spiral arms
+        N_ELLIPSES   = 1000   # number of ellipses to produce
+
+        # make ellipses
+        ellipses = make_ellipses(core_radius=CORE_RAD, galaxy_radius=GAL_RAD, \
+                                    distant_radius=DIST_RAD, inner_eccentricity=INNER_E, \
+                                    outer_eccentricity=OUTER_E, angular_offset=ANG_OFF, \
+                                    n_ellipses=N_ELLIPSES)
+
+        # make galaxy from ellipses
+        gxy = make_galaxy(ellipses)
 
     # units
     unit_m = constants.M_sun
@@ -405,11 +435,22 @@ if __name__ == "__main__":
                                                 sigma_bound=sigma_bound_star, r_0_pc=r_eff_star_pc, i_iter_max=200000,
                                                 min_star_radius=min_star_radius)
     r_extract_star = np.abs(r_extract_star)
-    # extract the angle
-    theta_star = extract_angles_from_circle(N_pt=N_star_pt)
-    # extract the z position
-    z_extract_star = extract_z_from_gaussian(N_pt=N_star_pt, scale_height=h_scale_star)
-    x_extract_star, y_extract_star = convert_polar_to_cartesian(radius=r_extract_star, theta=theta_star)
+
+    if SPIRAL_LOC:
+        # transform distribution to match spiral
+        x, y, vx, vy = map_r_to_galaxy(r_extract_star, gxy)
+        r_extract_star = np.sqrt(x**2 + y**2)
+        theta_star = np.arctan2(y, x)
+        x_extract_star = x
+        y_extract_star = y
+
+    else:
+        # extract the angle
+        theta_star = extract_angles_from_circle(N_pt=N_star_pt)
+        # extract the z position
+        z_extract_star = extract_z_from_gaussian(N_pt=N_star_pt, scale_height=h_scale_star)
+        x_extract_star, y_extract_star = convert_polar_to_cartesian(radius=r_extract_star, theta=theta_star)
+
     density_check_star, bin_edges_star = np.histogram(r_extract_star, bins=100, density=True)
     BB_star = get_sersic_density(radius=min_star_radius, M_tot=M_star_tot_msun, r_0=r_eff_star_pc, n_sersic=n_sersic) / \
               density_check_star[0]
@@ -531,10 +572,23 @@ if __name__ == "__main__":
                                                           velocity_dispersion=5)
 
     v_modulus = np.sqrt(v_r_star ** 2 + v_theta_star ** 2 + v_phi_star ** 2)
+
     phi_star_particles = np.arccos(z_extract_star / np.sqrt(r_extract_star ** 2 + z_extract_star ** 2))
 
-    vx_star, vy_star, vz_star = convert_spherical_to_cartesian(radius=v_modulus, phi=theta_star,
-                                                               theta=phi_star_particles)
+    if SPIRAL_VEL:
+        vn = np.sqrt(vx**2 + vy**2)
+        e_scale = -1*v_theta_star / vn
+        vx *= e_scale
+        vy *= e_scale
+        vex = -1* v_r_star * np.cos(theta_star)
+        vey = v_r_star * np.sin(theta_star)
+        vx += vex
+        vy += vey
+        vx_star, vy_star, vz_star = convert_velocity_spherical_to_cartesian(v_r=v_r_star, theta_v=v_theta_star, phi_v=v_phi_star, theta_loc=theta_star)
+
+    else:
+        vx_star, vy_star, vz_star = convert_velocity_spherical_to_cartesian(v_r=v_r_star, theta_v=v_theta_star, \
+                                                                        phi_v=v_phi_star, theta_loc=theta_star)
 
     v_tot_star = np.zeros((3, N_pt_cut_star))
     v_tot_star[0, :] = vx_star[mask_star]
