@@ -117,6 +117,12 @@ def map_r_to_galaxy(radii, galaxy):
     correct distribution in theta while preserving
     the radial distribution, assuming a sufficient number
     of ellipses are used in generating the galaxy.
+
+    Exceptions are made for points in the galactic core and
+    beyond the spiral arms. In these regions, angles are
+    drawn from a uniform distribution.
+
+    NOTE core (min_r) is hard-set to 50.
     """
     idx = []
     er = np.asarray(galaxy[0])
@@ -125,8 +131,11 @@ def map_r_to_galaxy(radii, galaxy):
     evx = np.asarray(galaxy[4])
     evy = np.asarray(galaxy[5])
     max_r = np.max(er)
+    min_r = 50
     r_in_galaxy = radii[radii<max_r]
-    r_out_galaxy = radii[radii>=max_r]
+    r_in_galaxy = r_in_galaxy[r_in_galaxy>min_r]
+    r_out_galaxy = np.concatenate([radii[radii>=max_r], \
+                                   radii[radii<min_r]])
     for r in r_in_galaxy:
         idx += [np.argmin(abs(er - r))]
     mapped_x_in_galaxy = ex[idx]
@@ -154,9 +163,9 @@ if __name__=="__main__":
 
     # initialize variables
 
-    CORE_RAD     = 5
-    GAL_RAD      = 20
-    DIST_RAD     = 70
+    CORE_RAD     = 100
+    GAL_RAD      = 1000
+    DIST_RAD     = 5000
     INNER_E      = 0.4
     OUTER_E      = 0.9
     ANG_OFF      = 4
@@ -203,9 +212,9 @@ if __name__=="__main__":
 
     # plt.plot(ex[idx], ey[idx], 'b.', alpha=0.05)
     # plt.plot(x, y, 'b.', alpha=0.05)
-    plt.quiver(x, y, vx, vy, scale=np.ones(len(x))/5, angles='xy', units='xy', color='red', alpha=0.2)#, 'b.', alpha=0.05)
-    plt.xlim(-70, 70)
-    plt.ylim(-70, 70)
+    plt.quiver(x, y, vx*100, vy*100, scale=np.ones(len(x))/5, angles='xy', units='xy', color='red', alpha=0.2)#, 'b.', alpha=0.05)
+    plt.xlim(-500, 500)
+    plt.ylim(-500, 500)
     plt.gca().set_aspect('equal')
     plt.title("Star Particles", fontsize=20)
     plt.ylabel("Distance [kpc]", fontsize=15)

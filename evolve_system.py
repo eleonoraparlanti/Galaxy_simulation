@@ -81,7 +81,7 @@ def evolve_to_t_end(t_end, pt_mass, pt_pos, pt_vel, pt_acc,pt_jerk,G_gravity=1.0
   
   return t_now, i_iter, pt_mass, pt_pos, pt_vel, pt_acc, pt_jerk,  pos_snap, vel_snap, e_snap , t_snap
 
-def evolve_dt(dt, pt_mass, pt_pos, pt_vel, pt_acc,pt_jerk, G_gravity=1.0):
+def evolve_dt(dt, pt_mass, pt_pos, pt_vel, pt_acc, pt_jerk, G_gravity=1.0):
 
   """
   leapfrog time step
